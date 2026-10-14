@@ -4668,7 +4668,9 @@ static uint32 vorbis_find_page(stb_vorbis *f, uint32 *end, uint32 *last)
          unsigned int retry_loc = stb_vorbis_get_file_offset(f);
          int i;
          // check if we're off the end of a file_section stream
-         if (retry_loc - 25 > f->stream_len)
+         // (retry_loc is < 25 when searching from offset 0, which happens for short files
+         //  whose first audio packet shares a page with the headers; don't let it wrap around)
+         if (retry_loc > 25 && retry_loc - 25 > f->stream_len)
             return 0;
          // check the rest of the header
          for (i=1; i < 4; ++i)
