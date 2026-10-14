@@ -306,27 +306,22 @@ void idChoiceWindow::UpdateChoicesAndVals( void ) {
 
 	if ( latchedChoices.Icmp( choicesStr ) ) {
 		choices.Clear();
-		src.FreeSource();
-		src.SetFlags( LEXFL_NOFATALERRORS | LEXFL_ALLOWPATHNAMES | LEXFL_ALLOWMULTICHARLITERALS | LEXFL_ALLOWBACKSLASHSTRINGCONCAT );
-		src.LoadMemory( choicesStr, choicesStr.Length(), "<ChoiceList>" );
-		if ( src.IsLoaded() ) {
-			while( src.ReadToken( &token ) ) {
-				if ( token == ";" ) {
-					if ( str2.Length() ) {
-						str2.StripTrailingWhitespace();
-						str2 = common->GetLanguageDict()->GetString( str2 );
-						choices.Append(str2);
-						str2 = "";
-					}
-					continue;
-				}
-				str2 += token;
-				str2 += " ";
+		// split on ';' directly instead of using idLexer: the lexer treats bytes >= 0x80 as
+		// whitespace, so non-ASCII labels (e.g. cp1251 Cyrillic) came out as an empty list
+		const idStr &list = choicesStr;
+		int start = 0;
+		while ( start <= list.Length() ) {
+			int end = list.Find( ';', start );
+			if ( end < 0 ) {
+				end = list.Length();
 			}
+			str2 = list.Mid( start, end - start );
+			str2.StripLeading( ' ' );
+			str2.StripTrailingWhitespace();
 			if ( str2.Length() ) {
-				str2.StripTrailingWhitespace();
-				choices.Append( str2 );
+				choices.Append( common->GetLanguageDict()->GetString( str2 ) );
 			}
+			start = end + 1;
 		}
 		latchedChoices = choicesStr.c_str();
 	}
@@ -368,6 +363,8 @@ void idChoiceWindow::UpdateChoicesAndVals( void ) {
 		}
 		latchedVals = choiceVals.c_str();
 	}
+	// never leave an empty list: Draw() and HandleEvent() index choices[currentChoice]
+	ValidateChoice();
 }
 
 idStr R_GetVidModeListString(bool addCustom);
