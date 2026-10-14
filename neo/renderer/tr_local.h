@@ -395,6 +395,7 @@ typedef struct viewDef_s {
 	bool				isSubview;				// true if this view is not the main view
 	bool				isMirror;				// the portal is a mirror, invert the face culling
 	bool				isXraySubview;
+	bool				isGlowView;				// draws only the glowStage stages, see R_AddGlowView
 
 	bool				isEditor;
 
@@ -480,6 +481,8 @@ typedef enum {
 	RC_DRAW_VIEW,
 	RC_SET_BUFFER,
 	RC_COPY_RENDER,
+	RC_RENDER_GLOW,
+	RC_BLUR_GLOW,
 	RC_SWAP_BUFFERS		// can't just assume swap at end of list because
 						// of forced list submission before syncs
 } renderCommand_t;
@@ -505,6 +508,12 @@ typedef struct {
 	idImage	*image;
 	int		cubeFace;					// when copying to a cubeMap
 } copyRenderCommand_t;
+
+typedef struct {
+	renderCommand_t		commandId, *next;
+	viewDef_t	*viewDef;				// only for RC_RENDER_GLOW
+	int		width, height;
+} glowCommand_t;
 
 
 //=======================================================================
@@ -927,6 +936,10 @@ extern idCVar r_shaderlevel;
 extern idCVar r_correctspecular;
 extern idCVar r_normalizebumpmap;
 extern idCVar r_skipGlowOverlay;
+extern idCVar r_glowAlpha;
+extern idCVar r_glowAlphaChange;
+extern idCVar r_glowSteps;
+extern idCVar r_glowStrength;
 extern idCVar r_lowParticleDetail;
 extern idCVar r_useFastSkinning;
 
@@ -1309,6 +1322,8 @@ void RB_BindStageTexture( const float *shaderRegisters, const textureStage_t *te
 void RB_FinishStageTexture( const textureStage_t *texture, const drawSurf_t *surf );
 void RB_StencilShadowPass( const drawSurf_t *drawSurfs );
 void RB_STD_DrawView( void );
+void RB_STD_DrawGlowView( void );
+void RB_BlurGlow( const void *data );
 void RB_STD_FogAllLights( void );
 void RB_BakeTextureMatrixIntoTexgen( idPlane lightProject[3], const float textureMatrix[16] );
 

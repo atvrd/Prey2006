@@ -108,7 +108,11 @@ idCVar r_skipDiffuse( "r_skipDiffuse", "0", CVAR_RENDERER | CVAR_BOOL, "use blac
 idCVar r_shaderlevel( "r_shaderlevel", "3", CVAR_RENDERER | CVAR_INTEGER | CVAR_ARCHIVE, "shader detail level (Advanced Video menu)", 0, 3, idCmdSystem::ArgCompletion_Integer<0,3> );
 idCVar r_correctspecular( "r_correctspecular", "1", CVAR_RENDERER | CVAR_BOOL | CVAR_ARCHIVE, "high quality specular (Advanced Video menu)" );
 idCVar r_normalizebumpmap( "r_normalizebumpmap", "0", CVAR_RENDERER | CVAR_BOOL | CVAR_ARCHIVE, "sharpen / normalize bumpmaps (Advanced Video menu)" );
-idCVar r_skipGlowOverlay( "r_skipGlowOverlay", "0", CVAR_RENDERER | CVAR_BOOL | CVAR_ARCHIVE, "skip glow overlays (Advanced Video menu)" );
+idCVar r_skipGlowOverlay( "r_skipGlowOverlay", "0", CVAR_RENDERER | CVAR_BOOL | CVAR_ARCHIVE, "if true, skip drawing the glow overlay" );
+idCVar r_glowAlpha( "r_glowAlpha", "0.55", CVAR_RENDERER | CVAR_FLOAT, "start alpha used when blurring the glow texture" );
+idCVar r_glowAlphaChange( "r_glowAlphaChange", "0.85", CVAR_RENDERER | CVAR_FLOAT, "alpha change used when blurring the glow texture" );
+idCVar r_glowSteps( "r_glowSteps", "8", CVAR_RENDERER | CVAR_INTEGER, "steps used when blurring the glow texture" );
+idCVar r_glowStrength( "r_glowStrength", "0.5", CVAR_RENDERER | CVAR_FLOAT, "strength when drawing the final glow texture on screen" );
 idCVar r_lowParticleDetail( "r_lowParticleDetail", "0", CVAR_RENDERER | CVAR_BOOL | CVAR_ARCHIVE, "low particle detail (Advanced Video menu)" );
 idCVar r_useFastSkinning( "r_useFastSkinning", "0", CVAR_RENDERER | CVAR_BOOL | CVAR_ARCHIVE, "fast skinning (Advanced Video menu)" );
 idCVar r_skipROQ( "r_skipROQ", "0", CVAR_RENDERER | CVAR_BOOL, "skip ROQ decoding" );

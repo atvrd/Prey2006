@@ -1079,7 +1079,56 @@ static void R_SortDrawSurfs( void ) {
 
 //==============================================================================
 
+static const int GLOW_SIZE = 256;		// glow image size, in the lower left of the back buffer
 
+/*
+================
+R_AddGlowView
+
+Prey glow: renders the glowStage stages of the view's surfaces into a small
+square, before any view of the frame is drawn
+================
+*/
+static void R_AddGlowView( const viewDef_t *parms ) {
+	if ( r_skipGlowOverlay.GetBool() || parms->isEditor ) {
+		return;
+	}
+
+	viewDef_t *glowView = (viewDef_t *)R_FrameAlloc( sizeof( *glowView ) );
+	*glowView = *parms;
+	glowView->isSubview = true;
+	glowView->isMirror = false;
+	glowView->isGlowView = true;
+	glowView->viewport.x1 = 0;
+	glowView->viewport.y1 = 0;
+	glowView->viewport.x2 = GLOW_SIZE - 1;
+	glowView->viewport.y2 = GLOW_SIZE - 1;
+	glowView->scissor = glowView->viewport;
+	glowView->superView = NULL;
+	glowView->subviewSurface = NULL;
+
+	glowCommand_t *cmd = (glowCommand_t *)R_GetCommandBuffer( sizeof( *cmd ) );
+	cmd->commandId = RC_RENDER_GLOW;
+	cmd->viewDef = glowView;
+	cmd->width = GLOW_SIZE;
+	cmd->height = GLOW_SIZE;
+}
+
+/*
+================
+R_AddGlowBlur
+================
+*/
+static void R_AddGlowBlur( const viewDef_t *parms ) {
+	if ( parms->isSubview || parms->isGlowView || r_skipGlowOverlay.GetBool() ) {
+		return;
+	}
+
+	glowCommand_t *cmd = (glowCommand_t *)R_GetCommandBuffer( sizeof( *cmd ) );
+	cmd->commandId = RC_BLUR_GLOW;
+	cmd->width = GLOW_SIZE;
+	cmd->height = GLOW_SIZE;
+}
 
 /*
 ================
@@ -1149,6 +1198,8 @@ void R_RenderView( viewDef_t *parms ) {
 		}
 	}
 
+	R_AddGlowView( parms );
+
 	// write everything needed to the demo file
 	if ( session->writeDemo ) {
 		static_cast<idRenderWorldLocal *>(parms->renderWorld)->WriteVisibleDefs( tr.viewDef );
@@ -1159,4 +1210,6 @@ void R_RenderView( viewDef_t *parms ) {
 
 	// restore view in case we are a subview
 	tr.viewDef = oldView;
+
+	R_AddGlowBlur( parms );
 }

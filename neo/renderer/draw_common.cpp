@@ -707,7 +707,8 @@ void RB_STD_T_RenderShaderPasses( const drawSurf_t *surf ) {
 			}
 		}
 
-		if ( pStage->isGlow && r_skipGlowOverlay.GetBool() ) {
+		// the glow view draws only the glow stages
+		if ( backEnd.viewDef->isGlowView && !pStage->isGlow ) {
 			continue;
 		}
 
@@ -894,6 +895,11 @@ void RB_STD_T_RenderShaderPasses( const drawSurf_t *surf ) {
 
 		// draw it
 		RB_DrawElementsWithCounters( tri );
+
+		// without the glow overlay, glow stages are drawn twice instead
+		if ( pStage->isGlow && r_skipGlowOverlay.GetBool() ) {
+			RB_DrawElementsWithCounters( tri );
+		}
 
 		RB_FinishStageTexturing( pStage, surf, ac );
 
@@ -1670,6 +1676,129 @@ void RB_STD_LightScale( void ) {
 //=========================================================================================
 
 /*
+==================
+RB_GlowQuad
+
+Full texture on the given rect, inside qglBegin( GL_QUADS )
+==================
+*/
+static void RB_GlowQuad( float x1, float y1, float x2, float y2 ) {
+	qglTexCoord2f( 0, 0 );
+	qglVertex2f( x1, y1 );
+	qglTexCoord2f( 0, 1 );
+	qglVertex2f( x1, y2 );
+	qglTexCoord2f( 1, 1 );
+	qglVertex2f( x2, y2 );
+	qglTexCoord2f( 1, 0 );
+	qglVertex2f( x2, y1 );
+}
+
+/*
+==================
+RB_BlurGlow
+
+Blurs the glow view, still in the lower left of the back buffer, into
+_glowComposite: a horizontal and then a vertical pass that add offset copies
+with decreasing alpha
+==================
+*/
+void RB_BlurGlow( const void *data ) {
+	const glowCommand_t *cmd = (const glowCommand_t *)data;
+	int		steps = r_glowSteps.GetInteger();
+	float	step = 1.0f / cmd->width;
+	float	alpha;
+	int		i;
+
+	globalImages->glowScreenImage->CopyFramebuffer( 0, 0, cmd->width, cmd->height, false );
+
+	qglScissor( 0, 0, cmd->width, cmd->height );
+	qglLoadIdentity();
+	qglMatrixMode( GL_PROJECTION );
+	qglDisable( GL_STENCIL_TEST );
+	qglPushMatrix();
+	qglLoadIdentity();
+	qglOrtho( 0, 1, 0, 1, -1, 1 );
+	qglColor4f( 1, 1, 1, 1 );
+
+	GL_State( GLS_DEPTHFUNC_ALWAYS );
+	globalImages->glowScreenImage->Bind();
+	qglBegin( GL_QUADS );
+	RB_GlowQuad( 0, 0, 1, 1 );
+	qglEnd();
+
+	if ( steps ) {
+		GL_State( GLS_DEPTHFUNC_ALWAYS | GLS_SRCBLEND_SRC_ALPHA | GLS_DSTBLEND_ONE );
+
+		alpha = r_glowAlpha.GetFloat();
+		qglBegin( GL_QUADS );
+		for ( i = 1; i < steps; i++ ) {
+			float offset = i * step;
+			qglColor4f( alpha, alpha, alpha, alpha );
+			RB_GlowQuad( offset, 0, offset + 1, 1 );
+			RB_GlowQuad( -offset, 0, 1 - offset, 1 );
+			alpha *= r_glowAlphaChange.GetFloat();
+		}
+		qglEnd();
+
+		globalImages->glowCompositeImage->CopyFramebuffer( 0, 0, cmd->width, cmd->height, false );
+		globalImages->glowCompositeImage->Bind();
+
+		alpha = r_glowAlpha.GetFloat();
+		qglBegin( GL_QUADS );
+		for ( i = 1; i < steps; i++ ) {
+			float offset = i * step;
+			qglColor4f( alpha, alpha, alpha, alpha );
+			RB_GlowQuad( 0, offset, 1, offset + 1 );
+			RB_GlowQuad( 0, -offset, 1, 1 - offset );
+			alpha *= r_glowAlphaChange.GetFloat();
+		}
+		qglEnd();
+	}
+
+	globalImages->glowCompositeImage->CopyFramebuffer( 0, 0, cmd->width, cmd->height, false );
+
+	qglPopMatrix();
+	GL_State( GLS_DEPTHFUNC_ALWAYS );
+}
+
+/*
+==================
+RB_DrawGlowOverlay
+
+Adds the blurred glow on top of the view
+==================
+*/
+static void RB_DrawGlowOverlay( void ) {
+	if ( !backEnd.viewDef->viewEntitys || backEnd.viewDef->isEditor || backEnd.viewDef->isSubview || r_skipGlowOverlay.GetBool() ) {
+		return;
+	}
+
+	qglScissor( backEnd.viewDef->viewport.x1 + backEnd.viewDef->scissor.x1,
+		backEnd.viewDef->viewport.y1 + backEnd.viewDef->scissor.y1,
+		backEnd.viewDef->scissor.x2 - backEnd.viewDef->scissor.x1 + 1,
+		backEnd.viewDef->scissor.y2 - backEnd.viewDef->scissor.y1 + 1 );
+	backEnd.currentScissor = backEnd.viewDef->scissor;
+
+	qglLoadIdentity();
+	qglMatrixMode( GL_PROJECTION );
+	qglPushMatrix();
+	qglLoadIdentity();
+	qglOrtho( 0, 1, 0, 1, -1, 1 );
+
+	GL_State( GLS_DEPTHFUNC_ALWAYS | GLS_SRCBLEND_ONE | GLS_DSTBLEND_ONE );
+	qglColor3f( r_glowStrength.GetFloat(), r_glowStrength.GetFloat(), r_glowStrength.GetFloat() );
+	globalImages->glowCompositeImage->Bind();
+	qglBegin( GL_QUADS );
+	RB_GlowQuad( 0, 0, 1, 1 );
+	qglEnd();
+
+	qglPopMatrix();
+	qglMatrixMode( GL_MODELVIEW );
+}
+
+//=========================================================================================
+
+/*
 =============
 RB_STD_DrawView
 
@@ -1716,4 +1845,27 @@ void	RB_STD_DrawView( void ) {
 
 	RB_RenderDebugTools( drawSurfs, numDrawSurfs );
 
+	RB_DrawGlowOverlay();
+}
+
+/*
+=============
+RB_STD_DrawGlowView
+
+Fills the depth buffer, then draws only the glow stages
+=============
+*/
+void RB_STD_DrawGlowView( void ) {
+	drawSurf_t	 **drawSurfs = (drawSurf_t **)&backEnd.viewDef->drawSurfs[0];
+	int			numDrawSurfs = backEnd.viewDef->numDrawSurfs;
+
+	backEnd.depthFunc = GLS_DEPTHFUNC_EQUAL;
+
+	RB_BeginDrawingView();
+
+	RB_STD_FillDepthBuffer( drawSurfs, numDrawSurfs );
+
+	qglStencilFunc( GL_ALWAYS, 128, 255 );
+
+	RB_STD_DrawShaderPasses( drawSurfs, numDrawSurfs );
 }

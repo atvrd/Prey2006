@@ -633,6 +633,27 @@ const void	RB_CopyRender( const void *data ) {
 }
 
 /*
+=============
+RB_RenderGlow
+=============
+*/
+static void RB_RenderGlow( const void *data ) {
+	if ( r_skipGlowOverlay.GetBool() ) {
+		return;
+	}
+
+	// the surface scissor rects are in the pixels of the main view
+	bool useScissor = r_useScissor.GetBool();
+	r_useScissor.SetBool( false );
+
+	drawSurfsCommand_t cmd;
+	cmd.viewDef = ((const glowCommand_t *)data)->viewDef;
+	RB_DrawView( &cmd );
+
+	r_useScissor.SetBool( useScissor );
+}
+
+/*
 ====================
 RB_ExecuteBackEndCommands
 
@@ -657,9 +678,22 @@ void RB_ExecuteBackEndCommands( const emptyCommand_t *cmds ) {
 	// upload any image loads that have completed
 	globalImages->CompleteBackgroundImageLoads();
 
+	// the glow is rendered and blurred before any view is drawn
+	for ( const emptyCommand_t *cmd = cmds ; cmd ; cmd = (const emptyCommand_t *)cmd->next ) {
+		if ( cmd->commandId == RC_SET_BUFFER ) {
+			RB_SetBuffer( cmd );
+		} else if ( cmd->commandId == RC_RENDER_GLOW ) {
+			RB_RenderGlow( cmd );
+		} else if ( cmd->commandId == RC_BLUR_GLOW ) {
+			RB_BlurGlow( cmd );
+		}
+	}
+
 	for ( ; cmds ; cmds = (const emptyCommand_t *)cmds->next ) {
 		switch ( cmds->commandId ) {
 		case RC_NOP:
+		case RC_RENDER_GLOW:
+		case RC_BLUR_GLOW:
 			break;
 		case RC_DRAW_VIEW:
 			RB_DrawView( cmds );

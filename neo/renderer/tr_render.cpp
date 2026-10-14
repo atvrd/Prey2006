@@ -914,7 +914,11 @@ void RB_DrawView( const void *data ) {
 	RB_ShowOverdraw();
 
 	// render the scene, jumping to the hardware specific interaction renderers
-	RB_STD_DrawView();
+	if ( backEnd.viewDef->isGlowView ) {
+		RB_STD_DrawGlowView();
+	} else {
+		RB_STD_DrawView();
+	}
 
 	// restore the context for 2D drawing if we were stubbing it out
 	if ( r_skipRenderContext.GetBool() && backEnd.viewDef->viewEntitys ) {

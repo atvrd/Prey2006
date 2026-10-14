@@ -426,6 +426,8 @@ public:
 	idImage *			scratchImage2;
 	idImage *			accumImage;
 	idImage *			currentRenderImage;			// for SS_POST_PROCESS shaders
+	idImage *			glowScreenImage;			// glow view render
+	idImage *			glowCompositeImage;			// blurred glow, added on top of the view
 	idImage *			scratchCubeMapImage;
 	idImage *			specularTableImage;			// 1D intensity texture with our specular function
 	idImage *			borderClampImage;			// white inside, black outside
